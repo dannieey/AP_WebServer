@@ -47,6 +47,7 @@ func (s *Server) Routes() http.Handler {
 // handlers
 func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 	s.incrementRequests()
+	w.Header().Set("Content-Type", "application/json")
 
 	switch r.Method {
 	case http.MethodPost:
@@ -75,6 +76,8 @@ func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDataByKey(w http.ResponseWriter, r *http.Request) {
 	s.incrementRequests()
+	w.Header().Set("Content-Type", "application/json")
+
 	key := strings.TrimPrefix(r.URL.Path, "/data/")
 
 	switch r.Method {
@@ -107,4 +110,8 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(stats)
+}
+
+func (s *Server) Store() *store.Store[string, string] {
+	return s.store
 }

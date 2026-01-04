@@ -15,34 +15,49 @@ import (
 )
 
 func main() {
+	// Создаём generic Store[string,string]
 	store := store.NewStore[string, string]()
 	srv := server.NewServer(store)
 
-	httpServer := &http.Server{
+	// чекаем изменение ключей +2
+	srv.Store().Set("k1", "v1")
+	srv.Store().Set("k2", "v2")
+
+	// Запуск фонового worker-а
+	stopWorker := make(chan struct{})
+	go worker.StartWorker(srv, stopWorker)
+
+	// HTTP сервер с handler от нашего сервера
+	httpSrv := &http.Server{
 		Addr:    ":8080",
-		Handler: srv.Routes(),
+		Handler: srv.Routes(), // srv.Routes() возвращает http.Handler
 	}
 
-	stopWorker := make(chan struct{})
-	go worker.StartWorker(stopWorker, srv)
-
+	// Запуск сервера в отдельной горутине
 	go func() {
 		log.Println("Server started on :8080")
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal(err)
+		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServe(): %v", err)
 		}
 	}()
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	<-sig
+	// Ловим OS сигналы для graceful shutdown
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	<-stop // ждём сигнал
 
-	log.Println("Shutting down...")
+	log.Println("Shutting down server...")
+
+	// Останавливаем worker
 	close(stopWorker)
 
+	// Graceful shutdown HTTP сервера с таймаутом
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	httpServer.Shutdown(ctx)
+	if err := httpSrv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server Shutdown Failed: %+v", err)
+	}
 
-	log.Println("Server stopped")
+	log.Println("Server exited gracefully")
+
 }
