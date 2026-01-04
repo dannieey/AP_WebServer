@@ -60,5 +60,3 @@
 * Generics are used correctly
 
 
-
-Хочешь, чтобы я это сделал?
